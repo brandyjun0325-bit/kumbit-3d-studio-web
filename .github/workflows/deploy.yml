@@ -10,6 +10,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Use newly uploaded HTML as index.html
+        run: |
+          # 루트에 index.html 이외의 .html 파일이 올라오면 가장 최근 커밋된 파일을 index.html로 교체
+          newest=""
+          newest_ts=0
+          for f in *.html; do
+            [ -f "$f" ] || continue
+            [ "$f" = "index.html" ] && continue
+            ts=$(git log -1 --format=%ct -- "$f")
+            if [ "${ts:-0}" -ge "$newest_ts" ]; then newest="$f"; newest_ts=$ts; fi
+          done
+          if [ -n "$newest" ]; then
+            echo "Promote: $newest -> index.html"
+            mkdir -p versions
+            git mv -f "$newest" index.html
+            for f in *.html; do
+              [ "$f" = "index.html" ] && continue
+              [ -f "$f" ] && git mv -f "$f" "versions/$f"
+            done
+            git -c user.name=github-actions -c user.email=github-actions@users.noreply.github.com commit -qm "chore: '$newest' 를 index.html로 교체"
+            git push origin HEAD:main
+          fi
       - name: Validate index.html
         run: |
           test -f index.html
